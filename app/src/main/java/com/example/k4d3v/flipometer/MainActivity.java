@@ -1,8 +1,13 @@
 package com.example.k4d3v.flipometer;
 
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
+import android.util.Log;
 import android.view.View;
 import android.support.design.widget.NavigationView;
 import android.support.v4.view.GravityCompat;
@@ -12,9 +17,19 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.TextView;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static java.lang.Math.abs;
 
 public class MainActivity extends AppCompatActivity
-        implements NavigationView.OnNavigationItemSelectedListener {
+        implements NavigationView.OnNavigationItemSelectedListener, SensorEventListener {
+
+    private SensorManager sensorManager;
+    private Sensor gyro;
+    private TextView[] tvs;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,6 +55,26 @@ public class MainActivity extends AppCompatActivity
 
         NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
         navigationView.setNavigationItemSelectedListener(this);
+
+
+        // Init. gyro
+        sensorManager = (SensorManager)getSystemService(SENSOR_SERVICE);
+        List<Sensor> sensors = sensorManager.getSensorList(Sensor.TYPE_ALL);
+
+        for (Sensor s: sensors) {
+            if (s.getType() == Sensor.TYPE_GYROSCOPE) {
+                gyro = s;
+                break;
+            }
+        }
+
+        sensorManager.registerListener(this, gyro, SensorManager.SENSOR_DELAY_NORMAL);
+        System.out.println("Gyro registered");
+
+        tvs = new TextView[3];
+        tvs[0] = ((TextView) findViewById(R.id.azimuth));
+        tvs[1] = ((TextView) findViewById(R.id.pitch));
+        tvs[2] = ((TextView) findViewById(R.id.roll));
     }
 
     @Override
@@ -97,5 +132,41 @@ public class MainActivity extends AppCompatActivity
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
         drawer.closeDrawer(GravityCompat.START);
         return true;
+    }
+
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        // event.values contain angular speed: up, back, side (x,y,z)
+        for (int i = 0; i<tvs.length; i++) {
+            float speed = event.values[i];
+            if (abs(speed) > 0.05) {
+                tvs[i].setText(String.valueOf(event.values[i]));
+            }
+            else tvs[i].setText("0");
+        }
+
+        // TODO: Calc distance from velocity and detect full rotation
+        // TODO: Use time step
+        // TODO: What exactly is rad/s?
+
+
+        //R = R1 * transpose(R2)
+        //angle = acos((trace(R)-1)/2)
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
+    }
+
+    protected void onResume() {
+        super.onResume();
+        sensorManager.registerListener(this, gyro, SensorManager.SENSOR_DELAY_NORMAL);
+        System.out.println("Gyro registered");
+    }
+
+    protected void onPause() {
+        super.onPause();
+        sensorManager.unregisterListener(this);
     }
 }

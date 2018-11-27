@@ -7,7 +7,6 @@ import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
-import android.util.Log;
 import android.view.View;
 import android.support.design.widget.NavigationView;
 import android.support.v4.view.GravityCompat;
@@ -19,7 +18,6 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.TextView;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static java.lang.Math.abs;
@@ -29,7 +27,11 @@ public class MainActivity extends AppCompatActivity
 
     private SensorManager sensorManager;
     private Sensor gyro;
-    private TextView[] tvs;
+    private TextView[] speed_tvs;
+    private TextView[] dist_tvs;
+    private float[] dists = {0,0,0};
+    private TextView[] rots_tvs; // TODO: Load rots of device
+    private long time;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,11 +72,28 @@ public class MainActivity extends AppCompatActivity
 
         sensorManager.registerListener(this, gyro, SensorManager.SENSOR_DELAY_NORMAL);
         System.out.println("Gyro registered");
-
-        tvs = new TextView[3];
-        tvs[0] = ((TextView) findViewById(R.id.azimuth));
-        tvs[1] = ((TextView) findViewById(R.id.pitch));
-        tvs[2] = ((TextView) findViewById(R.id.roll));
+        
+        // Init. speed
+        speed_tvs = new TextView[3];
+        speed_tvs[0] = ((TextView) findViewById(R.id.azimuth));
+        speed_tvs[1] = ((TextView) findViewById(R.id.pitch));
+        speed_tvs[2] = ((TextView) findViewById(R.id.roll));
+        
+        // Init. dists
+        dist_tvs = new TextView[3];
+        dist_tvs[0] = ((TextView) findViewById(R.id.dx));
+        dist_tvs[1] = ((TextView) findViewById(R.id.dy));
+        dist_tvs[2] = ((TextView) findViewById(R.id.dz));
+        
+        // Init. rots
+        // TODO: Init. with data from device
+        rots_tvs = new TextView[3];
+        rots_tvs[0] = ((TextView) findViewById(R.id.rx));
+        rots_tvs[1] = ((TextView) findViewById(R.id.ry));
+        rots_tvs[2] = ((TextView) findViewById(R.id.rz));
+        
+        // Start time measurement
+        time = System.nanoTime();
     }
 
     @Override
@@ -136,13 +155,41 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     public void onSensorChanged(SensorEvent event) {
+        long tstamp = event.timestamp;
+        long timestep = tstamp-time;
+        // Time between events should be less than 0.1s
+        if (timestep>1e8) timestep = (long) 1e8;
+
+        // Update time
+        time = event.timestamp;
+
         // event.values contain angular speed: up, back, side (x,y,z)
-        for (int i = 0; i<tvs.length; i++) {
+        for (int i = 0; i< speed_tvs.length; i++) {
             float speed = event.values[i];
-            if (abs(speed) > 0.05) {
-                tvs[i].setText(String.valueOf(event.values[i]));
+            // Check if speed is fast enough
+            if (abs(speed) > 3e-2) {
+                // Update speed
+                speed_tvs[i].setText(String.valueOf(Math.floor(speed*100)/100));
+                
+                // Increment distance
+                dists[i] += speed*(timestep/1e9);
+                //TODO: Reset dist if the direction was changed (Optional)
+                // Show pretty number in view
+                dist_tvs[i].setText(String.valueOf(Math.floor(dists[i]*100)/100));
+                
+                // Check for full rotation
+                // TODO: Why 2 rots with 2PI???
+                if (abs(dists[i])>=Math.PI) {
+                    // Increment rots
+                    rots_tvs[i].setText(String.valueOf(
+                            Long.valueOf(rots_tvs[i].getText().toString())+1));
+                    // Reset dists
+                    dist_tvs[i].setText("0");
+                    dists[i] = 0;
+                }
             }
-            else tvs[i].setText("0");
+            // No significant movement
+            else speed_tvs[i].setText("0");
         }
 
         // TODO: Calc distance from velocity and detect full rotation
